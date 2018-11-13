@@ -1,2 +1,2 @@
 # public-data
-Data sets created by CrossLang and made publicly available.
+Data sets we created during various projects and for which we received the permission to publish them.
