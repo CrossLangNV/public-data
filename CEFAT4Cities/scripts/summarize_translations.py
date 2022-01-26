@@ -18,20 +18,18 @@ This script will do a couple of things:
 import json
 import os
 import re
+import shutil
 import warnings
 from enum import Enum
 from typing import Union
 
-# TODO add to arg or use default value.
-# Directory with municipalities and then files.
-# We expect we only need the json-l's and their translations.
-DIRECTORY = r"C:\Users\Laurens\Data\C4C\translations\trafilatura_temp\trafilatura"
-# DIRECTORY = os.path.join(os.path.dirname(os.path.abspath(__file__)))
+from utils import get_country, get_municipality
 
-DIR_SAVE = 'export'
+# Variable names
+SUCCESS = 'success'
 
 
-def make_dir(main_folder, sub_folder):
+def make_dir(main_folder, sub_folder) -> str:
     """
     Make a sub_folder in main_folder
     :param main_folder:
@@ -39,7 +37,7 @@ def make_dir(main_folder, sub_folder):
     :return:
     """
 
-    assert os.path.exists(main_folder), f"Could not find dir: {DIRECTORY}"
+    assert os.path.exists(main_folder), f"Could not find dir: {main_folder}"
 
     dirname = os.path.join(main_folder, sub_folder)
 
@@ -47,19 +45,18 @@ def make_dir(main_folder, sub_folder):
         print(f"Creating dir: {dirname}")
         os.makedirs(dirname)
 
-
-make_dir(DIRECTORY, DIR_SAVE)
-
-# Variable names
-SUCCESS = 'success'
-EXCEPT = 'exception'
+    return dirname
 
 
-def main(a=False):
+def main(directory,
+         dir_save,
+         a=False):
     """
     User-script
     :return:
     """
+
+    path_save = make_dir(directory, dir_save)
 
     def generate_translated_jsonl_filenames(directory):
         """
@@ -97,14 +94,13 @@ def main(a=False):
     d_select = {err.value: 0 for err in TranslationError}
     d_select[SUCCESS] = 0
 
-    for filename in generate_translated_jsonl_filenames(DIRECTORY):
+    for filename in generate_translated_jsonl_filenames(directory):
         filename_orig = get_orig(filename)
 
         if not os.path.exists(filename_orig):
             warnings.warn(f"Could not find file: {filename_orig}", UserWarning)
 
         data_trans = JSONL(filename)
-        # data_trans.export()
 
         for d in data_trans:
 
@@ -132,6 +128,25 @@ def main(a=False):
             print(f"{l_sorted[1]}")
             print(f"{l_sorted[2]}")
 
+        # Save to files:
+        # Get country
+
+        # country = get_country(filename=filan).value
+
+        municipality = get_municipality(filename)
+        country = get_country(municipality).value
+        dir_country = make_dir(path_save, country)
+        new_dir = make_dir(dir_country, municipality)
+
+        name = os.path.split(filename)[-1]
+        # name_orig = os.path.split(filename_orig)[-1]
+
+        new_filename = os.path.join(new_dir, name)
+        # new_filename_orig = os.path.join(new_dir, name_orig)
+
+        data_trans.export(new_filename)
+        shutil.copy(filename_orig, new_dir)
+
     return 0  # Success
 
 
@@ -152,9 +167,6 @@ class JSONL(list):
             json_list = json_file.read().splitlines()
 
         l = [self.parse_json(s_j) for s_j in json_list]
-
-        # TODO implement here?
-        # l = get_data(filename)
         super().__init__(l)
 
         self.l_str = json_list
@@ -207,7 +219,8 @@ class JSONL(list):
 
         return clean_error(d)
 
-    def export(self):
+    def export(self, filename=None,
+               statistics: bool = False):
         """
         Only save lines that are OK.
 
@@ -219,24 +232,33 @@ class JSONL(list):
 
         l = []
 
-        statistics = {e: 0 for e in TranslationError}
-        statistics[SUCCESS] = 0
+        if statistics:
+            d_statistics = {e: 0 for e in TranslationError}
+            d_statistics[SUCCESS] = 0
 
         for j, s in zip(self, self.l_str):
             if isinstance(j, TranslationError):
                 # skip
-                statistics[j] += 1
+                if statistics:
+                    d_statistics[j] += 1
                 continue
 
-            else:
-                statistics[SUCCESS] += 1
+            if statistics:
+                d_statistics[SUCCESS] += 1
 
             # Write to file
             l.append(s)
 
-        # TODO write to file instead of print.
-        print(statistics)
-        print(l)
+        if statistics:
+            print(d_statistics)
+
+        if filename is not None:
+            with open(filename, 'w', encoding="utf-8") as json_file:
+
+                for j_s in l:
+                    json_file.write(j_s)
+                    json_file.write("\n")
+
         return l
 
 
@@ -258,4 +280,17 @@ class Result:
 
 if __name__ == '__main__':
     # TODO convert to proper user script with args.
-    main(a=False)
+
+    # TODO add to arg or use default value.
+    # Directory with municipalities and then files.
+    # We expect we only need the json-l's and their translations.
+
+    if 0:
+        DIRECTORY = r"C:\Users\Laurens\Data\C4C\translations\trafilatura_temp\trafilatura"
+    else:
+        DIRECTORY = os.path.join(os.path.dirname(os.path.abspath(__file__)))
+    DIR_SAVE = r'../export'
+
+    main(directory=DIRECTORY,
+         dir_save=DIR_SAVE,
+         a=False)
