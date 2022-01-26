@@ -28,16 +28,27 @@ from typing import Union
 DIRECTORY = r"C:\Users\Laurens\Data\C4C\translations\trafilatura_temp\trafilatura"
 # DIRECTORY = os.path.join(os.path.dirname(os.path.abspath(__file__)))
 
-DIR_SAVE = os.path.join(DIRECTORY, 'export')
+DIR_SAVE = 'export'
 
 
-def make_dir(dirname):
+def make_dir(main_folder, sub_folder):
+    """
+    Make a sub_folder in main_folder
+    :param main_folder:
+    :param sub_folder:
+    :return:
+    """
+
+    assert os.path.exists(main_folder), f"Could not find dir: {DIRECTORY}"
+
+    dirname = os.path.join(main_folder, sub_folder)
+
     if not os.path.exists(dirname):
         print(f"Creating dir: {dirname}")
         os.makedirs(dirname)
 
 
-make_dir(DIR_SAVE)
+make_dir(DIRECTORY, DIR_SAVE)
 
 # Variable names
 SUCCESS = 'success'
@@ -93,7 +104,7 @@ def main(a=False):
             warnings.warn(f"Could not find file: {filename_orig}", UserWarning)
 
         data_trans = JSONL(filename)
-        # json_l.export()
+        # data_trans.export()
 
         for d in data_trans:
 
