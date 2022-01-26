@@ -17,17 +17,34 @@ This script will do a couple of things:
 # Check for failed outputs -> Save the outputs and group returned strings and count.
 import json
 import os
+import re
+import warnings
+from enum import Enum
+from typing import Union
 
 # TODO add to arg or use default value.
 # Directory with municipalities and then files.
 # We expect we only need the json-l's and their translations.
-import warnings
-import re
-
 DIRECTORY = r"C:\Users\Laurens\Data\C4C\translations\trafilatura_temp\trafilatura"
+# DIRECTORY = os.path.join(os.path.dirname(os.path.abspath(__file__)))
+
+DIR_SAVE = os.path.join(DIRECTORY, 'export')
 
 
-def main():
+def make_dir(dirname):
+    if not os.path.exists(dirname):
+        print(f"Creating dir: {dirname}")
+        os.makedirs(dirname)
+
+
+make_dir(DIR_SAVE)
+
+# Variable names
+SUCCESS = 'success'
+EXCEPT = 'exception'
+
+
+def main(a=False):
     """
     User-script
     :return:
@@ -40,9 +57,9 @@ def main():
         :return: filenames to the JSON-L's
         """
 
-        for municipality in os.listdir(DIRECTORY):
+        for municipality in os.listdir(directory):
 
-            dir_municipality = os.path.join(DIRECTORY, municipality)
+            dir_municipality = os.path.join(directory, municipality)
 
             if not os.path.isdir(dir_municipality):
                 continue
@@ -53,7 +70,7 @@ def main():
                 if "translated" in file and ".jsonl" in file:
                     filename = os.path.join(dir_municipality, file)
 
-        yield filename
+                    yield filename
 
     def get_orig(file_or_filename):
         """
@@ -64,7 +81,10 @@ def main():
 
         return file_or_filename.rsplit("translated", 1)[0].rsplit(".", 1)[0]
 
+    d_content = {}
 
+    d_select = {err.value: 0 for err in TranslationError}
+    d_select[SUCCESS] = 0
 
     for filename in generate_translated_jsonl_filenames(DIRECTORY):
         filename_orig = get_orig(filename)
@@ -72,76 +92,159 @@ def main():
         if not os.path.exists(filename_orig):
             warnings.warn(f"Could not find file: {filename_orig}", UserWarning)
 
-        data_trans = get_data(filename)
-        data_orig = get_data(filename_orig)
+        data_trans = JSONL(filename)
+        # json_l.export()
 
-        filename, filename_orig
+        for d in data_trans:
+
+            if isinstance(d, TranslationError):
+                d_select[d.value] += 1
+
+            else:
+                d_select[SUCCESS] += 1
+
+                c = d["translated_content"]
+
+                if a:
+                    if c in d_content:
+                        d_content[c] += 1
+                    else:
+                        d_content[c] = 1
+
+        print(d_select)
+
+        if a:
+            l_sorted = [(k, v) for k, v in sorted(d_content.items(), key=lambda item: item[1], reverse=True)]
+
+            print("Most common strings:")
+            print(f"{l_sorted[0]}")
+            print(f"{l_sorted[1]}")
+            print(f"{l_sorted[2]}")
 
     return 0  # Success
 
 
-def get_data(filename_json, debug=False):
+class TranslationError(Enum):
+    ISE = "Internal Server Error"
+    TMR = "Too Many Requests"
+    PE = "Parse Error"
+
+
+class JSONL(list):
     """
-    Converts the JSON-Lines file to list of python dict.
-    :param filename_json:
-    :return:
-
-    TODO
-     - This still isn't entirely correct. The problem occurs with all the backslashes.
-    Notes
-     - There are also too many double backslashes in the original, translated files where there should be only one.
+    To parse the translated JSON-L's
     """
 
-    # Opening JSON file
-    with open(filename_json, 'r', encoding="utf-8") as json_file:
-        json_list = list(json_file)
+    def __init__(self, filename):
+        # Opening JSON-Lines file
+        with open(filename, 'r', encoding="utf-8") as json_file:
+            json_list = json_file.read().splitlines()
 
-    for json_str in json_list:
+        l = [self.parse_json(s_j) for s_j in json_list]
 
-        if not json_str: # Skip empty lines/end
-            continue
+        # TODO implement here?
+        # l = get_data(filename)
+        super().__init__(l)
 
-        # Try to fix if '"' in string, but not as delimter.
+        self.l_str = json_list
 
-        # Drop first, drop last
-        json_str_cut = json_str.split('"', 1)[1].rsplit('"', 1)[0]
-        l_pairs = json_str_cut.split('", "')
+    @staticmethod
+    def parse_json(json_str,
+                   debug=False) -> Union[dict, TranslationError]:
 
-        l_pairs2 = []
-        for pair in l_pairs:
-            key, value = pair.split('":"', 1)
+        KEY_ID = "id"
+        KEY_title = "title"
+        KEY_URL = "url"
+        KEY_CONTENT = "translated_content"
 
-            # This is the line that fixes the double quotes within double quotes.
+        def clean_error(d):
 
-            value2 = value.replace('"', "''")
+            content = d.get(KEY_CONTENT)
 
-            pair2 = f'"{key}": "{value2}"'
-            l_pairs2.append(pair2)
+            # Check for Translated content
+            for err in TranslationError:
+                if err.value == content:
+                    return err
 
-        json_str2 = ', '.join(l_pairs2)
-        json_str3 = f'{{{json_str2}}}'
+            return d
 
-        # if json_str3 is
+        # First try to use normal script.
+        try:
+            j = json.loads(json_str)
+        except json.decoder.JSONDecodeError:
+            # Let's try something else
+            pass
+        else:
+            return clean_error(j)
 
-        if debug:
-            print(json_str3)
+        pattern = rf'^({{"{KEY_ID}"\s?:\s?")(.+)(",\s?"{KEY_title}":\s?")(.+)(",\s?"{KEY_URL}":")(.+)(",\s?"{KEY_CONTENT}":\s?")(.+)("}})'
 
-        class LazyDecoder(json.JSONDecoder):
-            def decode(self, s, **kwargs):
-                regex_replacements = [
-                    (re.compile(r'([^\\])\\([^\\])'), r'\1\\\\\2'),
-                    (re.compile(r',(\s*])'), r'\1'),
-                ]
-                for regex, replacement in regex_replacements:
-                    s = regex.sub(replacement, s)
-                return super().decode(s, **kwargs)
+        match = re.match(pattern, json_str)
+        try:
+            _, _id, _, _title, _, _url, _, _content, _ = match.groups()
+        except:
+            return TranslationError.PE
 
-        # result = json.loads(json_str, cls=LazyDecoder)
-        result = json.loads(json_str3, cls=LazyDecoder)
+        d = {
+            KEY_ID: _id,
+            KEY_title: _title,
+            KEY_URL: _url,
+            KEY_CONTENT: _content,
+        }
 
-        yield result
+        r = Result(**d)
+
+        return clean_error(d)
+
+    def export(self):
+        """
+        Only save lines that are OK.
+
+        :return:
+
+        TODO
+         - First we are just printing it.
+        """
+
+        l = []
+
+        statistics = {e: 0 for e in TranslationError}
+        statistics[SUCCESS] = 0
+
+        for j, s in zip(self, self.l_str):
+            if isinstance(j, TranslationError):
+                # skip
+                statistics[j] += 1
+                continue
+
+            else:
+                statistics[SUCCESS] += 1
+
+            # Write to file
+            l.append(s)
+
+        # TODO write to file instead of print.
+        print(statistics)
+        print(l)
+        return l
+
+
+class Result:
+    def __init__(self, *args, translated_content=None, **kwargs):
+
+        self.args = args
+        self.kwargs = kwargs
+
+        if translated_content is not None:
+
+            if translated_content == TranslationError.ISE.value:
+                self.translated_content = TranslationError.ISE
+            elif translated_content == TranslationError.TMR.value:
+                self.translated_content = TranslationError.TMR
+            else:
+                self.translated_content = translated_content
 
 
 if __name__ == '__main__':
     # TODO convert to proper user script with args.
-    main()
+    main(a=False)
