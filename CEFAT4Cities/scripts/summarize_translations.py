@@ -50,13 +50,15 @@ def make_dir(main_folder, sub_folder) -> str:
 
 def main(directory,
          dir_save,
+         save: bool = False,
          a=False):
     """
     User-script
     :return:
     """
 
-    path_save = make_dir(directory, dir_save)
+    if save:
+        path_save = make_dir(directory, dir_save)
 
     def generate_translated_jsonl_filenames(directory):
         """
@@ -133,19 +135,20 @@ def main(directory,
 
         # country = get_country(filename=filan).value
 
-        municipality = get_municipality(filename)
-        country = get_country(municipality).value
-        dir_country = make_dir(path_save, country)
-        new_dir = make_dir(dir_country, municipality)
+        if save:
+            municipality = get_municipality(filename)
+            country = get_country(municipality).value
+            dir_country = make_dir(path_save, country)
+            new_dir = make_dir(dir_country, municipality)
 
-        name = os.path.split(filename)[-1]
-        # name_orig = os.path.split(filename_orig)[-1]
+            name = os.path.split(filename)[-1]
+            # name_orig = os.path.split(filename_orig)[-1]
 
-        new_filename = os.path.join(new_dir, name)
-        # new_filename_orig = os.path.join(new_dir, name_orig)
+            new_filename = os.path.join(new_dir, name)
+            # new_filename_orig = os.path.join(new_dir, name_orig)
 
-        data_trans.export(new_filename)
-        shutil.copy(filename_orig, new_dir)
+            data_trans.export(new_filename)
+            shutil.copy(filename_orig, new_dir)
 
     return 0  # Success
 
@@ -293,4 +296,5 @@ if __name__ == '__main__':
 
     main(directory=DIRECTORY,
          dir_save=DIR_SAVE,
+         save=False,
          a=False)
