@@ -48,6 +48,40 @@ def make_dir(main_folder, sub_folder) -> str:
     return dirname
 
 
+def filter_translated_json(filename):
+    # Filter on translated json-l
+    return "translated" in filename and ".jsonl" in filename
+
+
+def generate_translated_jsonl_filenames(directory):
+    """
+
+    :param directory:
+    :return: filenames to the JSON-L's
+    """
+
+    for municipality in os.listdir(directory):
+
+        dir_municipality = os.path.join(directory, municipality)
+
+        if not os.path.isdir(dir_municipality):
+            continue
+
+        for file in filter(lambda file: filter_translated_json(file), os.listdir(dir_municipality)):
+            filename = os.path.join(dir_municipality, file)
+            yield filename
+
+
+def get_orig(file_or_filename):
+    """
+    First get everything before 'translated' and then before dot.
+    :param file_or_filename:
+    :return:
+    """
+
+    return file_or_filename.rsplit("translated", 1)[0].rsplit(".", 1)[0]
+
+
 def main(directory,
          dir_save,
          save: bool = False,
@@ -59,37 +93,6 @@ def main(directory,
 
     if save:
         path_save = make_dir(directory, dir_save)
-
-    def generate_translated_jsonl_filenames(directory):
-        """
-
-        :param directory:
-        :return: filenames to the JSON-L's
-        """
-
-        for municipality in os.listdir(directory):
-
-            dir_municipality = os.path.join(directory, municipality)
-
-            if not os.path.isdir(dir_municipality):
-                continue
-
-            # Check if
-            for file in os.listdir(dir_municipality):
-                # Filter on translated json-l
-                if "translated" in file and ".jsonl" in file:
-                    filename = os.path.join(dir_municipality, file)
-
-                    yield filename
-
-    def get_orig(file_or_filename):
-        """
-        First get everything before 'translated' and then before dot.
-        :param file_or_filename:
-        :return:
-        """
-
-        return file_or_filename.rsplit("translated", 1)[0].rsplit(".", 1)[0]
 
     d_content = {}
 

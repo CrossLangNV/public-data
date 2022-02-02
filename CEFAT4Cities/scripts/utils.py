@@ -42,3 +42,16 @@ def get_country(municipality) -> Country:
     # elif municipality in []
 
     return
+
+
+def clean_newlines(s):
+    """
+    The data did contain some newline errors.
+    :param s:
+    :return:
+    """
+    s_clean = s.replace('\\r', '\r').replace('\\R', '\r')
+    s_clean = s_clean.replace('\\n', '\n').replace('\\N', '\n')
+    # Remove empty lines.
+    s_clean = '\n'.join(filter(lambda x: x.replace(' ', ''), s_clean.splitlines()))
+    return s_clean
