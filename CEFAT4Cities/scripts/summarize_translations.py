@@ -23,7 +23,7 @@ import warnings
 from enum import Enum
 from typing import Union
 
-from utils import get_country, get_municipality
+from .utils import get_country, get_municipality
 
 # Variable names
 SUCCESS = 'success'
